@@ -65,6 +65,7 @@ class ResourcePoolManager:
 
     def create_resource_pool(self):
         for resource_pool_name, process_on_nodes in self.resource_pool_spec.items():
+            print(f"1 verl/trainer/ppo/ray_trainer.py, ResourcePoolManager::create_resource_pool, resource_pool_name:{resource_pool_name} and process_on_nodes:{process_on_nodes}")
             # max_colocate_count means the number of WorkerGroups (i.e. processes) in each RayResourcePool
             # For FSDP backend, we recommend using max_colocate_count=1 that merge all WorkerGroups into one.
             # For Megatron backend, we recommend using max_colocate_count>1 that can utilize different WorkerGroup for differnt models
@@ -334,7 +335,7 @@ class RayPPOTrainer(object):
         self.use_reference_policy = Role.RefPolicy in role_worker_mapping
         self.use_rm = Role.RewardModel in role_worker_mapping
         self.ray_worker_group_cls = ray_worker_group_cls
-
+        print(f"1 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer:: __init__, self.use_reference_policy:{self.use_reference_policy} and config.algorithm.kl_ctrl.type: {config.algorithm.kl_ctrl.type}")
         # define KL control
         if self.use_reference_policy:
             if config.algorithm.kl_ctrl.type == 'fixed':
@@ -348,7 +349,7 @@ class RayPPOTrainer(object):
                 raise NotImplementedError
         else:
             self.kl_ctrl = core_algos.FixedKLController(kl_coef=0.)
-
+        print(f"2 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer:: __init__, self.config.algorithm.adv_estimator: {self.config.algorithm.adv_estimator}")
         if self.config.algorithm.adv_estimator == 'gae':
             self.use_critic = True
         elif self.config.algorithm.adv_estimator == 'grpo':
@@ -357,7 +358,7 @@ class RayPPOTrainer(object):
             self.use_critic = False
         else:
             raise NotImplementedError
-
+        print(f"3 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer:: __init__, self.use_critic: {self.use_critic}")
         self._validate_config()
         self._create_dataloader()
 
@@ -365,7 +366,7 @@ class RayPPOTrainer(object):
         config = self.config
         # number of GPUs total
         n_gpus = config.trainer.n_gpus_per_node * config.trainer.nnodes
-
+        print(f"1 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_validate_config, n_gpus: {n_gpus} and config.actor_rollout_ref.rollout.n: {config.actor_rollout_ref.rollout.n}")
         # 1. Check total batch size for data correctness
         real_train_batch_size = config.data.train_batch_size * config.actor_rollout_ref.rollout.n
         assert real_train_batch_size % n_gpus == 0, \
@@ -374,6 +375,7 @@ class RayPPOTrainer(object):
         # A helper function to check "micro_batch_size" vs "micro_batch_size_per_gpu"
         # We throw an error if the user sets both. The new convention is "..._micro_batch_size_per_gpu".
         def check_mutually_exclusive(mbs, mbs_per_gpu, name: str):
+            print(f"2 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_validate_config, mbs: {mbs} and mbs_per_gpu: {mbs_per_gpu}")
             if mbs is None and mbs_per_gpu is None:
                 raise ValueError(f"[{name}] Please set at least one of '{name}.micro_batch_size' or "
                                  f"'{name}.micro_batch_size_per_gpu'.")
@@ -382,8 +384,9 @@ class RayPPOTrainer(object):
                 raise ValueError(f"[{name}] You have set both '{name}.micro_batch_size' AND "
                                  f"'{name}.micro_batch_size_per_gpu'. Please remove '{name}.micro_batch_size' "
                                  f"because only '*_micro_batch_size_per_gpu' is supported (the former is deprecated).")
-
+        print(f"3 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_validate_config, config.actor_rollout_ref.actor.use_dynamic_bsz: {config.actor_rollout_ref.actor.use_dynamic_bsz}")
         if not config.actor_rollout_ref.actor.use_dynamic_bsz:
+            #print(f"4 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_validate_config, config.actor_rollout_ref.actor.ppo_micro_batch_size: {config.actor_rollout_ref.actor.ppo_micro_batch_size} and config.actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu: {config.actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu}")
             # actor: ppo_micro_batch_size vs. ppo_micro_batch_size_per_gpu
             check_mutually_exclusive(config.actor_rollout_ref.actor.ppo_micro_batch_size,
                                      config.actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu,
@@ -413,8 +416,10 @@ class RayPPOTrainer(object):
         # if NOT dynamic_bsz, we must ensure:
         #    ppo_mini_batch_size is divisible by ppo_micro_batch_size
         #    ppo_micro_batch_size * sequence_parallel_size >= n_gpus
+        print(f"5 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_validate_config, onfig.actor_rollout_ref.actor.use_dynamic_bsz:{config.actor_rollout_ref.actor.use_dynamic_bsz}")
         if not config.actor_rollout_ref.actor.use_dynamic_bsz:
             sp_size = config.actor_rollout_ref.actor.get('ulysses_sequence_parallel_size', 1)
+            print(f"6 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_validate_config, sp_size: {sp_size} and n_gpus: {n_gpus}")
             if config.actor_rollout_ref.actor.ppo_micro_batch_size is not None:
                 assert config.actor_rollout_ref.actor.ppo_mini_batch_size % config.actor_rollout_ref.actor.ppo_micro_batch_size == 0
                 assert config.actor_rollout_ref.actor.ppo_micro_batch_size * sp_size >= n_gpus
@@ -450,6 +455,7 @@ class RayPPOTrainer(object):
                                          filter_prompts=True,
                                          return_raw_chat=self.config.data.get('return_raw_chat', False),
                                          truncation='error')
+        print(f"1 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_create_dataloader, self.config.data.shuffle: {self.config.data.shuffle}")
         # use sampler for better ckpt resume
         if self.config.data.shuffle:
             train_dataloader_generator = torch.Generator()
@@ -685,6 +691,7 @@ class RayPPOTrainer(object):
 
         # we should create rollout at the end so that vllm can have a better estimation of kv cache memory
         self.actor_rollout_wg = all_wg['actor_rollout']
+        print(f"1 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::init_workers, self.actor_rollout_wg:{self.actor_rollout_wg} and type(self.actor_rollout_wg):{type(self.actor_rollout_wg)}")
         self.actor_rollout_wg.init_model()
 
     def _save_checkpoint(self):

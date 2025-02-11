@@ -49,6 +49,7 @@ def main_task(config, compute_score=None):
     from verl.utils import hf_tokenizer
     tokenizer = hf_tokenizer(local_path)
 
+    print(f"1 config.actor_rollout_ref.actor.strategy:{config.actor_rollout_ref.actor.strategy}")
     # define worker classes
     if config.actor_rollout_ref.actor.strategy == 'fsdp':
         assert config.actor_rollout_ref.actor.strategy == config.critic.strategy
@@ -100,6 +101,7 @@ def main_task(config, compute_score=None):
         mapping[Role.RewardModel] = global_pool_id
 
     reward_manager_name = config.reward_model.get("reward_manager", "naive")
+    print(f"1 verl/trainer/main_ppo.py, reward_manager_name: {reward_manager_name}")
     if reward_manager_name == 'naive':
         from verl.workers.reward_manager import NaiveRewardManager
         reward_manager_cls = NaiveRewardManager

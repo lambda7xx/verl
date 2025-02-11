@@ -34,7 +34,7 @@ class NaiveRewardManager:
             return data.batch['rm_scores']
 
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
-
+        print(f"1 verl/workers/reward_manager/naive.py NaiveRewardManager __call__ data:{data.shape} and len(data):{len(data)}")
         already_print_data_sources = {}
 
         for i in range(len(data)):

@@ -85,11 +85,13 @@ class ActorRolloutRefWorker(Worker):
         # build device mesh for FSDP
         world_size = torch.distributed.get_world_size()
         # TODO(sgm): support FSDP hybrid shard for larger model
+        print(f"1 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ world_size: {world_size} and self.config.actor.fsdp_config.fsdp_size:{self.config.actor.fsdp_config.fsdp_size}")
         self.device_mesh = create_device_mesh(world_size=world_size, fsdp_size=self.config.actor.fsdp_config.fsdp_size)
 
         # build device mesh for Ulysses Sequence Parallel
         self.ulysses_device_mesh = None
         self.ulysses_sequence_parallel_size = self.config.actor.get('ulysses_sequence_parallel_size', 1)
+        print(f"2 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self.ulysses_sequence_parallel_size: {self.ulysses_sequence_parallel_size}")
         dp = world_size // self.ulysses_sequence_parallel_size
         if self.ulysses_sequence_parallel_size > 1:
             self.ulysses_device_mesh = init_device_mesh('cuda',
@@ -104,7 +106,7 @@ class ActorRolloutRefWorker(Worker):
         self._is_actor = self.role in ['actor', 'actor_rollout', 'actor_rollout_ref']
         self._is_rollout = self.role in ['rollout', 'actor_rollout', 'actor_rollout_ref']
         self._is_ref = self.role in ['ref', 'actor_rollout_ref']
-
+        print(f"3 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self._is_actor: {self._is_actor} and self._is_rollout: {self._is_rollout} and self._is_ref: {self._is_ref}")
         self._is_offload_param = False
         self._is_offload_grad = False
         self._is_offload_optimizer = False
@@ -115,17 +117,22 @@ class ActorRolloutRefWorker(Worker):
         elif self._is_ref:
             # TODO: it seems that manual offload is slowly than FSDP offload
             self._is_offload_param = self.config.ref.fsdp_config.get('param_offload', False)
-
+        print(f"4 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self._is_offload_param: {self._is_offload_param} and self._is_offload_grad: {self._is_offload_grad} and self._is_offload_optimizer: {self._is_offload_optimizer}")
         # normalize config
         if self._is_actor:
-            self.config.actor.ppo_mini_batch_size *= self.config.rollout.n
-            self.config.actor.ppo_mini_batch_size //= (self.device_mesh.shape[0] // self.ulysses_sequence_parallel_size)
+            self.config.actor.ppo_mini_batch_size *= self.config.rollout.n #TODO(Xiao):why multiply by n?
+            print(f"5 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self.config.actor.ppo_mini_batch_size: {self.config.actor.ppo_mini_batch_size}")
+            print(f"6 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self.device_mesh.shape[0]:{self.device_mesh.shape[0]} ")
+            print(f"7 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self.ulysses_sequence_parallel_size: {self.ulysses_sequence_parallel_size}")
+            self.config.actor.ppo_mini_batch_size //= (self.device_mesh.shape[0] // self.ulysses_sequence_parallel_size)#TODO(Xiao):self.device_mesh.shape[0] // self.ulysses_sequence_parallel_size)?
             # micro bsz
             if self.config.actor.ppo_micro_batch_size is not None:
                 self.config.actor.ppo_micro_batch_size //= (self.device_mesh.shape[0] //
                                                             self.ulysses_sequence_parallel_size)
                 self.config.actor.ppo_micro_batch_size_per_gpu = self.config.actor.ppo_micro_batch_size
                 assert self.config.actor.ppo_mini_batch_size % self.config.actor.ppo_micro_batch_size_per_gpu == 0
+                print(f"8 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self.config.actor.ppo_micro_batch_size: {self.config.actor.ppo_micro_batch_size}")
+                print(f"9 verl/workers/fsdp_workers.py ActorRolloutRefWorker.__init__ self.config.actor.ppo_micro_batch_size_per_gpu: {self.config.actor.ppo_micro_batch_size_per_gpu}")
         # normalize rollout config
         if self._is_rollout and self.config.rollout.log_prob_micro_batch_size is not None:
             self.config.rollout.log_prob_micro_batch_size //= (self.device_mesh.shape[0] //
