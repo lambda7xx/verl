@@ -340,11 +340,15 @@ class ActorRolloutRefWorker(Worker):
         if self._is_actor or self._is_rollout:
             # we need the model for actor and rollout
             if self._is_actor:
+                print(f"1 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model self._is_actor")
                 optim_config = self.config.actor.optim
                 fsdp_config = self.config.actor.fsdp_config
             else:
+                print(f"2 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model self._is_rollout")
                 optim_config = None
                 fsdp_config = OmegaConf.create()
+            print(f"3 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model fsdp_config: {fsdp_config}")
+            print(f"4 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model optim_config: {optim_config}")
             self.actor_module_fsdp, self.actor_optimizer, self.actor_lr_scheduler, self.actor_model_config = self._build_model_optimizer(
                 model_path=self.config.model.path,
                 fsdp_config=fsdp_config,
@@ -455,7 +459,7 @@ class ActorRolloutRefWorker(Worker):
         if self._is_offload_param:
             load_fsdp_param_and_grad(module=self.actor_module_fsdp,
                                      device_id=torch.cuda.current_device(),
-                                     load_grad=self._is_offload_grad)
+                                     load_grad=self._is_offload_grad)#TODO(xiao) 25/02/12, do not understand this, why this 
 
         prompts.batch = prompts.batch.cuda()
         meta_info = {
@@ -470,8 +474,8 @@ class ActorRolloutRefWorker(Worker):
         with self.rollout_sharding_manager:
             log_gpu_memory_usage('After entering rollout sharding manager', logger=logger)
 
-            prompts = self.rollout_sharding_manager.preprocess_data(prompts)
-            output = self.rollout.generate_sequences(prompts=prompts)
+            prompts = self.rollout_sharding_manager.preprocess_data(prompts)#TODO(xiao) 25/02/12, do not understand this, why this, very important
+            output = self.rollout.generate_sequences(prompts=prompts) #TODO(xiao) 25/02/12, do not understand this, why this, very important
 
             log_gpu_memory_usage('After rollout generation', logger=logger)
 

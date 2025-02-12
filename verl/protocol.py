@@ -79,7 +79,7 @@ def union_tensor_dict(tensor_dict1: TensorDict, tensor_dict2: TensorDict) -> Ten
             tensor_dict1[key] = tensor_dict2[key]
         else:
             assert tensor_dict1[key].equal(tensor_dict2[key]), \
-                f'{key} in tensor_dict1 and tensor_dict2 are not the same object'
+                f'{key} in tensor_dict1 and tensor_dict2 are not the same object' #TODO(xiao):25/02/12, 为什么tensor_dict1[key].equal(tensor_dict2[key])
 
     return tensor_dict1
 
@@ -274,8 +274,11 @@ class DataProto:
     def from_single_dict(cls, data: Dict[str, Union[torch.Tensor, np.ndarray]], meta_info=None):
         tensors = {}
         non_tensors = {}
-
+        i = 0
         for key, val in data.items():
+            if i <=2:
+                print(f"1 verl/protocol.py, from_single_dict, type(val): {type(val)}")
+                i = i + 1 #Xiao: 这段代码的作用是打印出 val 的类型，最多打印两次
             if isinstance(val, torch.Tensor):
                 tensors[key] = val
             elif isinstance(val, np.ndarray):
@@ -316,9 +319,10 @@ class DataProto:
                     f'Not all the tensor in tensors have the same batch size with batch_dims={num_batch_dims}. Got {pivot_key} has {batch_size}, {key} has {current_batch}'
 
         for key, val in non_tensors.items():
-            non_tensors[key] = np.array(val, dtype=object)
+            #Xiao(25/02/12, type(val) is ndarray, not p.ndarray)
+            non_tensors[key] = np.array(val, dtype=object)#Xiao: 这句代码的作用是将 val（一个 numpy.ndarray 类型的数组）转换为一个新的 NumPy 数组，并将新数组的数据类型（dtype）显式设置为 object
 
-        tensor_dict = TensorDict(source=tensors, batch_size=batch_size)
+        tensor_dict = TensorDict(source=tensors, batch_size=batch_size)#Xiao:TensorDict 是 PyTorch 中的一个容器类，用来存储多个张量（torch.Tensor），并且可以在一个批次中有效地管理它们的形状和尺寸。它常常用于需要同时操作一组张量的场景，例如强化学习中的状态、动作、奖励等数据的批量处理。
         return cls(batch=tensor_dict, non_tensor_batch=non_tensors, meta_info=meta_info)
 
     def to(self, device) -> 'DataProto':
@@ -390,7 +394,11 @@ class DataProto:
         # tensor batch
         for key in batch_keys:
             assert key in self.batch.keys()
-            tensors[key] = self.batch.pop(key)
+            
+            tensors[key] = self.batch.pop(key)#25/02/12 xiao:pop它的作用是移除并返回 TensorDict 中指定键（key）对应的张量。与 Python 的标准字典中的 pop 方法类似，TensorDict.pop(key) 会删除指定的键，并返回与该键关联的值。
+            value = tensors[key]
+            print(f"2 verl/protocol.py, pop, key: {key}, value.shape: {value.shape}")
+            #TODO:attention mask如何初始化？ 25/02/12 xiao: dataloader里面就有？
         non_tensors = {}
         # non tensor batch
         for key in non_tensor_batch_keys:
@@ -576,6 +584,62 @@ class DataProto:
                     for key, tensor in self.batch.items()
                 }
 
+            """
+            tensor.repeat_interleave(repeat_times, dim=0)
+            这两种操作都可以用于在指定维度上重复PyTorch张量，但它们的实现方式有所不同。
+
+            ### 1. `tensor.repeat_interleave(repeat_times, dim=0)`
+            - `repeat_interleave` 是一种直接的张量重复操作，它会将张量沿着指定的维度 `dim` 进行插值式的重复。
+            - 它的行为是将张量中的每个元素按照给定的 `repeat_times` 在指定维度上重复。这是一个逐元素的重复操作。
+
+            #### 示例
+            ```python
+            import torch
+            tensor = torch.tensor([1, 2, 3])
+            result = tensor.repeat_interleave(2, dim=0)
+            print(result)  # 输出 tensor([1, 1, 2, 2, 3, 3])
+            ```
+            在这里，原始张量 `[1, 2, 3]` 在 `dim=0` 维度上每个元素都被重复了 `2` 次。
+
+            ### 2. `tensor.unsqueeze(0).expand(repeat_times, *tensor.shape).reshape(-1, *tensor.shape[1:])`
+            这段代码是通过 `unsqueeze` 和 `expand` 结合 `reshape` 来实现的，它并不是直接重复张量中的元素，而是通过扩展张量的维度来实现重复。
+
+            - `tensor.unsqueeze(0)` 在张量的最前面加了一个新的维度，形成一个新的形状。
+            - `expand(repeat_times, *tensor.shape)` 将张量沿着第一个维度（新增的维度）进行扩展，重复指定的次数。`*tensor.shape` 会保留张量原本的其他维度不变。
+            - `reshape(-1, *tensor.shape[1:])` 将扩展后的张量展平，使其变成一个二维张量，其中第一个维度表示重复的次数，第二个维度是原张量的形状。
+
+            #### 示例
+            ```python
+            tensor = torch.tensor([1, 2, 3])
+            result = tensor.unsqueeze(0).expand(2, *tensor.shape).reshape(-1)
+            print(result)  # 输出 tensor([1, 2, 3, 1, 2, 3])
+            ```
+            在这里，`tensor.unsqueeze(0)` 使张量的形状从 `[3]` 变为 `[1, 3]`，然后 `expand(2, 3)` 将其变为 `[2, 3]`，最终 `reshape(-1)` 将其展平成 `[6]`，即 `[1, 2, 3, 1, 2, 3]`。
+            >>> import torch 
+            >>> tensor = torch.tensor([1, 2, 3])
+            >>> x = tensor.unsqueeze(0)
+            >>> x
+            tensor([[1, 2, 3]])
+            >>> y = x.expand(2, *tensor.shape)
+            >>> x.shape
+            torch.Size([1, 3])
+            >>> tensor.shape
+            torch.Size([3])
+            >>> y.shape
+            torch.Size([2, 3])
+            >>> y
+            tensor([[1, 2, 3],
+                    [1, 2, 3]])
+            >>> z=y.reshape(-1)
+            >>> z
+            tensor([1, 2, 3, 1, 2, 3])
+            >>> z.shape
+            torch.Size([6])
+            ### 总结
+            - `repeat_interleave` 是逐元素的重复，会对每个元素进行复制。
+            - `unsqueeze + expand + reshape` 则是通过增加维度并扩展张量的形状来实现重复，可以用来更灵活地控制重复行为，尤其在多维张量的重复时更有用。
+
+            """
             repeated_batch = TensorDict(
                 source=repeated_tensors,
                 batch_size=(self.batch.batch_size[0] * repeat_times,),

@@ -769,18 +769,19 @@ class RayPPOTrainer(object):
         self.train_dataloader = torch.load(dataloader_local_path)
         if isinstance(self.train_dataloader.dataset, RLHFDataset):
             self.train_dataloader.dataset.resume_dataset_state()
-
+    #TODO(Xiao):25/02/12, 这个函数的作用是啥,很重要
     def _balance_batch(self, batch: DataProto, metrics, logging_prefix='global_seqlen'):
         """Reorder the data on single controller such that each dp rank gets similar total tokens"""
         attention_mask = batch.batch['attention_mask']
         batch_size = attention_mask.shape[0]
-        global_seqlen_lst = batch.batch['attention_mask'].view(batch_size, -1).sum(-1).tolist()  # (train_batch_size,)
+        print(f"1 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::_balance_batch, attention_mask.shape:{attention_mask.shape}")
+        global_seqlen_lst = batch.batch['attention_mask'].view(batch_size, -1).sum(-1).tolist()  # (train_batch_size,)#Xiao(25/02/12:计算这个batch的每个样本的总长度
         world_size = self.actor_rollout_wg.world_size
         global_partition_lst = get_seqlen_balanced_partitions(global_seqlen_lst,
                                                               k_partitions=world_size,
                                                               equal_size=True)
         # reorder based on index. The data will be automatically equally partitioned by dispatch function
-        global_idx = torch.tensor([j for partition in global_partition_lst for j in partition])
+        global_idx = torch.tensor([j for partition in global_partition_lst for j in partition])#TODO(xiao):2025-02-12, 这个global_idx是干嘛的
         batch.reorder(global_idx)
         global_balance_stats = log_seqlen_unbalance(seqlen_list=global_seqlen_lst,
                                                     partitions=global_partition_lst,
@@ -809,7 +810,7 @@ class RayPPOTrainer(object):
         # perform validation before training
         # currently, we only support validation using the reward_function.
         if self.val_reward_fn is not None and self.config.trainer.get('val_before_train', True):
-            val_metrics = self._validate()
+            val_metrics = self._validate()#TODO(xiao):2025-02-12, do not understand this 
             pprint(f'Initial validation metrics: {val_metrics}')
             logger.log(data=val_metrics, step=self.global_steps)
             if self.config.trainer.get('val_only', False):
@@ -817,16 +818,18 @@ class RayPPOTrainer(object):
 
         # we start from step 1
         self.global_steps += 1
-
+        temp_i = 0
         for epoch in range(self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
                 metrics = {}
                 timing_raw = {}
-
-                batch: DataProto = DataProto.from_single_dict(batch_dict)
+                if temp_i <= 2:
+                    print(f"1 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::fit, batch_dict.keys(): {batch_dict.keys()}")
+                    temp_i += 1
+                batch: DataProto = DataProto.from_single_dict(batch_dict)#TODO(xiao):2025-02-12, need understand the DataProto
 
                 # pop those keys for generation
-                gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
+                gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])#Xiao:2025-02-12, why pop these keys
 
                 with _timer('step', timing_raw):
                     # generate a batch
@@ -849,7 +852,7 @@ class RayPPOTrainer(object):
 
                     # recompute old_log_probs
                     with _timer('old_log_prob', timing_raw):
-                        old_log_prob = self.actor_rollout_wg.compute_log_prob(batch)
+                        old_log_prob = self.actor_rollout_wg.compute_log_prob(batch) #TODO(xiao):2025-02-12, 这个函数的作用是啥,
                         batch = batch.union(old_log_prob)
 
                     if self.use_reference_policy:

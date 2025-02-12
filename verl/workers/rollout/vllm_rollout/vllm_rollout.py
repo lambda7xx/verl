@@ -51,7 +51,75 @@ def _pre_process_inputs(pad_token_id, prompt_token_ids: torch.Tensor) -> List[in
     # pad_token_id = self.llm_engine.tokenizer.pad_token_id if self.llm_engine.tokenizer.pad_token_id is not None else self.llm_engine.tokenizer.eos_token_id
     non_pad_index = torch.nonzero(prompt_token_ids != pad_token_id, as_tuple=False)[0][0]
     token_ids = prompt_token_ids[non_pad_index:].tolist()
+    print(f"1 vllm_rollout.py, _pre_process_inputs, len(token_ids): {len(token_ids)} and pad_token_id: {pad_token_id}")
     return token_ids
+    """
+    这个 `_pre_process_inputs` 函数的作用是对输入的 `prompt_token_ids` 进行预处理，具体来说，是**去除左侧的填充（padding）部分**，并返回一个不包含填充的 token ID 列表。以下是对代码的详细解释：
+
+    ---
+
+    ### **函数功能**
+    1. **输入**：
+    - `pad_token_id`：填充 token 的 ID（通常是 `tokenizer.pad_token_id`）。
+    - `prompt_token_ids`：一个包含 token ID 的 PyTorch 张量（`torch.Tensor`），通常是经过填充的 token ID 序列。
+
+    2. **输出**：
+    - 返回一个不包含左侧填充的 token ID 列表（`List[int]`）。
+
+    ---
+
+    ### **代码逐行解释**
+
+    #### 1. **`non_pad_index = torch.nonzero(prompt_token_ids != pad_token_id, as_tuple=False)[0][0]`**
+    - **作用**：
+    - 找到第一个非填充 token 的索引。
+    - **实现细节**：
+    - `prompt_token_ids != pad_token_id`：生成一个布尔张量，标记哪些位置的 token 不是填充 token。
+    - `torch.nonzero(...)`：返回所有非零元素（即非填充 token）的索引。
+    - `[0][0]`：取第一个非填充 token 的索引。
+
+    #### 2. **`token_ids = prompt_token_ids[non_pad_index:].tolist()`**
+    - **作用**：
+    - 从第一个非填充 token 开始，截取 `prompt_token_ids` 的剩余部分，并将其转换为 Python 列表。
+    - **实现细节**：
+    - `prompt_token_ids[non_pad_index:]`：从 `non_pad_index` 开始截取张量，去除左侧的填充部分。
+    - `.tolist()`：将 PyTorch 张量转换为 Python 列表。
+
+    #### 3. **`return token_ids`**
+    - **作用**：
+    - 返回不包含左侧填充的 token ID 列表。
+
+    ---
+
+    ### **示例**
+    假设：
+    - `pad_token_id = 0`
+    - `prompt_token_ids = torch.tensor([0, 0, 0, 1, 2, 3, 0, 0])`
+
+    #### 执行过程：
+    1. **找到第一个非填充 token 的索引**：
+    - `prompt_token_ids != pad_token_id` 的结果是 `[False, False, False, True, True, True, False, False]`。
+    - `torch.nonzero(...)` 的结果是 `[[3], [4], [5]]`。
+    - `[0][0]` 的结果是 `3`（第一个非填充 token 的索引）。
+
+    2. **截取并转换**：
+    - `prompt_token_ids[3:]` 的结果是 `[1, 2, 3, 0, 0]`。
+    - `.tolist()` 的结果是 `[1, 2, 3, 0, 0]`。
+
+    3. **返回值**：
+    - 返回 `[1, 2, 3, 0, 0]`。
+
+    ---
+
+    ### **优化建议**
+    根据代码中的注释（`NOTE(sgm)`），当前的实现是为了处理数据加载器（`dataloader`）返回的填充后的 token ID 序列。如果数据加载器可以直接返回未填充的 token ID 列表（`List[int]`），则可以避免这个预处理步骤，从而提高效率。
+
+    ---
+
+    ### **总结**
+    `_pre_process_inputs` 函数的作用是去除输入 token ID 序列中的左侧填充部分，并返回一个不包含填充的 token ID 列表。它的主要应用场景是处理经过填充的 token ID 序列，以便后续的模型处理可以忽略填充部分。
+
+    """
 
 
 class vLLMRollout(BaseRollout):
@@ -125,6 +193,7 @@ class vLLMRollout(BaseRollout):
 
         print(f"kwargs: {kwargs}")
         self.sampling_params = SamplingParams(**kwargs)
+        print(f"1 vllm_rollout.py, vLLMRollout::init, self.sampling_params: {self.sampling_params}")
 
         self.pad_token_id = tokenizer.pad_token_id
 
@@ -151,10 +220,12 @@ class vLLMRollout(BaseRollout):
             self.inference_engine.init_cache_engine()
 
         idx = prompts.batch['input_ids']  # (bs, prompt_length)
+        print(f"0 vllm_rollout.py, generate_sequences, type(idx): {type(idx)}")
         # left-padded attention_mask
         attention_mask = prompts.batch['attention_mask']
+        print(f"1 vllm_rollout.py, generate_sequences, type(attention_mask): {type(attention_mask)}")
         position_ids = prompts.batch['position_ids']
-
+        print(f"2 vllm_rollout.py, generate_sequences, type(position_ids): {type(position_ids)}")
         # used to construct attention_mask
         eos_token_id = prompts.meta_info['eos_token_id']
 
@@ -163,6 +234,8 @@ class vLLMRollout(BaseRollout):
         idx_list = []
         # parse idx from torch.Tensor to List[List[str]]
         for i in range(batch_size):
+            if i<=2:
+                print(f"3 vllm_rollout.py, generate_sequences, idx[i]: {idx[i]}")
             idx_list.append(_pre_process_inputs(self.pad_token_id, idx[i]))
 
         do_sample = prompts.meta_info.get('do_sample', True)

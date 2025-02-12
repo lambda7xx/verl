@@ -53,7 +53,7 @@ class FSDPUlyssesShardingManager(BaseShardingManager):
             set_ulysses_sequence_parallel_group(self.prev_sp_group)
             # TODO: check how to set seed for each model
 
-    def preprocess_data(self, data: DataProto) -> DataProto:
+    def preprocess_data(self, data: DataProto) -> DataProto:#TODO(xiao) 25/02/12, do not understand this, why this, very important
         """
         AllGather data from sp region
         This is because the data is first sharded along the FSDP dimension as we utilize the DP_COMPUTE
