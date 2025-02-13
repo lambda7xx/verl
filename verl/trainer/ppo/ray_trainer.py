@@ -852,19 +852,19 @@ class RayPPOTrainer(object):
 
                     # recompute old_log_probs
                     with _timer('old_log_prob', timing_raw):
-                        old_log_prob = self.actor_rollout_wg.compute_log_prob(batch) #TODO(xiao):2025-02-12, 这个函数的作用是啥,
+                        old_log_prob = self.actor_rollout_wg.compute_log_prob(batch) #TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算log_prob
                         batch = batch.union(old_log_prob)
 
                     if self.use_reference_policy:
                         # compute reference log_prob
                         with _timer('ref', timing_raw):
-                            ref_log_prob = self.ref_policy_wg.compute_ref_log_prob(batch)
+                            ref_log_prob = self.ref_policy_wg.compute_ref_log_prob(batch)#TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算ref_log_prob
                             batch = batch.union(ref_log_prob)
 
                     # compute values
                     if self.use_critic:
                         with _timer('values', timing_raw):
-                            values = self.critic_wg.compute_values(batch)
+                            values = self.critic_wg.compute_values(batch)#TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算values
                             batch = batch.union(values)
 
                     with _timer('adv', timing_raw):
@@ -873,18 +873,18 @@ class RayPPOTrainer(object):
                         # the results from reward model and rule-based results.
                         if self.use_rm:
                             # we first compute reward model score
-                            reward_tensor = self.rm_wg.compute_rm_score(batch)
+                            reward_tensor = self.rm_wg.compute_rm_score(batch)#TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算reward_tensor
                             batch = batch.union(reward_tensor)
 
                         # we combine with rule-based rm
-                        reward_tensor = self.reward_fn(batch)
+                        reward_tensor = self.reward_fn(batch)#TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算reward_tensor
                         batch.batch['token_level_scores'] = reward_tensor
 
                         # compute rewards. apply_kl_penalty if available
                         if not self.config.actor_rollout_ref.actor.get('use_kl_loss', False):
                             batch, kl_metrics = apply_kl_penalty(batch,
                                                                  kl_ctrl=self.kl_ctrl,
-                                                                 kl_penalty=self.config.algorithm.kl_penalty)
+                                                                 kl_penalty=self.config.algorithm.kl_penalty)#TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算kl_metrics
                             metrics.update(kl_metrics)
                         else:
                             batch.batch['token_level_rewards'] = batch.batch['token_level_scores']
@@ -894,7 +894,7 @@ class RayPPOTrainer(object):
                                                   adv_estimator=self.config.algorithm.adv_estimator,
                                                   gamma=self.config.algorithm.gamma,
                                                   lam=self.config.algorithm.lam,
-                                                  num_repeat=self.config.actor_rollout_ref.rollout.n)
+                                                  num_repeat=self.config.actor_rollout_ref.rollout.n)#TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算adv_metrics
 
                     # update critic
                     if self.use_critic:
