@@ -272,6 +272,7 @@ class Worker(Worker):
 
     # assume the input is .state_dict()
     def sync_model_weights(self, actor_weights: Dict, load_format: str):
+        print(f"1 verl/third_party/vllm/vllm_v_0_6_3/worker.py, sync_model_weights, load_format: {load_format}")
         if load_format in [LoadFormat.MEGATRON, LoadFormat.AUTO]:
             load_megatron_weights(actor_weights, self.model_runner.model)
         elif load_format == LoadFormat.HF:

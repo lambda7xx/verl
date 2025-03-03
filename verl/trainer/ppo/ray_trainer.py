@@ -638,6 +638,7 @@ class RayPPOTrainer(object):
             actor_rollout_cls = RayClassWithInitArgs(cls=self.role_worker_mapping[Role.ActorRollout],
                                                      config=self.config.actor_rollout_ref,
                                                      role='actor_rollout')
+            print(f"1 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::init_workers, resource_pool:{resource_pool} and actor_rollout_cls:{actor_rollout_cls}")
             self.resource_pool_to_cls[resource_pool]['actor_rollout'] = actor_rollout_cls
         else:
             raise NotImplementedError
@@ -671,7 +672,9 @@ class RayPPOTrainer(object):
         self.wg_dicts = []
         for resource_pool, class_dict in self.resource_pool_to_cls.items():
             worker_dict_cls = create_colocated_worker_cls(class_dict=class_dict)
+            print(f"2 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::init_workers, resource_pool:{resource_pool} and worker_dict_cls:{worker_dict_cls}")
             wg_dict = self.ray_worker_group_cls(resource_pool=resource_pool, ray_cls_with_init=worker_dict_cls)
+            print(f"3 verl/trainer/ppo/ray_trainer.py, RayPPOTrainer::init_workers, wg_dict:{wg_dict} and class_dict.keys():{class_dict.keys()}")
             spawn_wg = wg_dict.spawn(prefix_set=class_dict.keys())
             all_wg.update(spawn_wg)
             # keep the referece of WorkerDict to support ray >= 2.31. Ref: https://github.com/ray-project/ray/pull/45699
@@ -840,7 +843,7 @@ class RayPPOTrainer(object):
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
                     batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
-                    batch = batch.union(gen_batch_output)
+                    batch = batch.union(gen_batch_output) #TODO(xiao) 02/28, 这个gen_batch_output是rollout gen的，为什么要和batch union
 
                     # balance the number of valid tokens on each dp rank.
                     # Note that this breaks the order of data inside the batch.
@@ -853,7 +856,8 @@ class RayPPOTrainer(object):
                     # recompute old_log_probs
                     with _timer('old_log_prob', timing_raw):
                         old_log_prob = self.actor_rollout_wg.compute_log_prob(batch) #TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算log_prob
-                        batch = batch.union(old_log_prob)
+                        batch = batch.union(old_log_prob) 
+                        #TODO(xiao):2025-02-28,old_log_prob是self.actor_rollout_wg.compute_log_prob，为什么需要计算old_log_prob，为什么又要和batch union
 
                     if self.use_reference_policy:
                         # compute reference log_prob

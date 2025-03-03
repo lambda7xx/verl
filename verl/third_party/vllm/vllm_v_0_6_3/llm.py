@@ -111,6 +111,7 @@ class LLM(LLM):
         removed_vision_keys = ("image_token_id", "image_feature_size", "image_input_shape", "image_input_type")
         if any(k in kwargs for k in removed_vision_keys):
             raise TypeError("There is no need to pass vision-related arguments anymore.")
+        print(f"1 LLM::init, tensor_parallel_size:{tensor_parallel_size}")
         engine_args = EngineArgs(
             model_hf_config=model_hf_config,
             # tokenizer=tokenizer,

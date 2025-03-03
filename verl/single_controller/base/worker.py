@@ -129,7 +129,7 @@ class Worker(WorkerHelper):
 
         local_world_size = int(os.getenv("LOCAL_WORLD_SIZE", "1"))
         local_rank = int(os.getenv("LOCAL_RANK", "0"))
-
+        print(f"Worker::init, the world_size is {world_size}, rank is {rank}, local_world_size is {local_world_size}, local_rank is {local_rank}")
         store = {
             '_world_size': world_size,
             '_rank': rank,

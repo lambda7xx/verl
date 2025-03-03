@@ -60,6 +60,7 @@ class FSDPVLLMShardingManager(BaseShardingManager):
         # get a random rng states
         if self.device_mesh is not None:
             gen_dp_rank = self.device_mesh['dp'].get_local_rank()
+            print(f"1 FSDPVLLMShardingManager::init gen_dp_rank: {gen_dp_rank}")
             torch.cuda.manual_seed(gen_dp_rank + 1000)  # make sure all tp ranks have the same random states
             self.gen_random_states = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(self.torch_random_states)
@@ -72,6 +73,12 @@ class FSDPVLLMShardingManager(BaseShardingManager):
         log_gpu_memory_usage('After state_dict() in sharding manager memory', logger=logger)
         # Copy, not share memory
         load_format = 'hf' if self.full_params else 'dtensor'
+        i = 0
+        for key, value in params.items():
+            print(f"1 FSDPVLLMShardingManager::enter, key: {key}, value.shape: {value.shape} and key.device: {key.device} and value.device: {value.device}")
+            i += 1
+            if i >= 2:
+                break
         self.inference_engine.sync_model_weights(params, load_format=load_format)
         log_gpu_memory_usage('After sync model weights in sharding manager', logger=logger)
 
@@ -86,6 +93,7 @@ class FSDPVLLMShardingManager(BaseShardingManager):
         # print(f'after model to cpu in sharding manager memory allocated: {torch.cuda.memory_allocated() / 1e9}GB, reserved: {torch.cuda.memory_reserved() / 1e9}GB')
 
         # important: need to manually set the random states of each tp to be identical.
+        #TODO(xiao) 02/28, 不是很理解
         if self.device_mesh is not None:
             self.torch_random_states = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(self.gen_random_states)

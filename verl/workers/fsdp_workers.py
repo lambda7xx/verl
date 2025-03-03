@@ -60,6 +60,7 @@ def create_device_mesh(world_size, fsdp_size):
 
 def get_sharding_strategy(device_mesh):
     from torch.distributed.fsdp import ShardingStrategy
+    print(f"0 verl/workers/fsdp_workers.py get_sharding_strategy device_mesh.ndim: {device_mesh.ndim}")
     if device_mesh.ndim == 1:
         sharding_strategy = ShardingStrategy.FULL_SHARD
     elif device_mesh.ndim == 2:
@@ -177,8 +178,10 @@ class ActorRolloutRefWorker(Worker):
 
         # override model kwargs
         actor_model_config = AutoConfig.from_pretrained(local_path, trust_remote_code=trust_remote_code)
+        print(f"0 verl/workers/fsdp_workers.py ActorRolloutRefWorker._build_model_optimizer actor_model_config: {actor_model_config}")
 
         self.generation_config = get_generation_config(local_path, trust_remote_code=trust_remote_code)
+        print(f"1 verl/workers/fsdp_workers.py ActorRolloutRefWorker._build_model_optimizer self.generation_config: {self.generation_config}")
 
         if use_remove_padding:
             from verl.models.registry import check_model_support_rmpad
@@ -208,6 +211,7 @@ class ActorRolloutRefWorker(Worker):
                                                                 config=actor_model_config,
                                                                 attn_implementation='flash_attention_2',
                                                                 trust_remote_code=trust_remote_code)
+            print(f"2 verl/workers/fsdp_workers.py ActorRolloutRefWorker._build_model_optimizer actor_module.device: {actor_module.device} and type(actor_module): {type(actor_module)}")
             # Apply Liger kernel to the model if use_liger is set to True
             if use_liger:
                 from liger_kernel.transformers.monkey_patch import _apply_liger_kernel_to_instance
@@ -236,9 +240,9 @@ class ActorRolloutRefWorker(Worker):
             reduce_dtype = torch.float32
             buffer_dtype = torch.float32
 
-        mixed_precision = MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype)
+        mixed_precision = MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype) #TODO(xiao) 02/28, 这里是用来做什么的
 
-        auto_wrap_policy = get_fsdp_wrap_policy(module=actor_module, config=fsdp_config.get('wrap_policy', None))
+        auto_wrap_policy = get_fsdp_wrap_policy(module=actor_module, config=fsdp_config.get('wrap_policy', None)) #TODO(xiao) 02/28, 这里是用来做什么的
 
         if self._is_rollout and self.config.rollout.name == 'hf':
             # TODO(zhangchi.usc1992, shengguangming) fix me. Current, auto_wrap_policy causes HFRollout to hang in Gemma
@@ -259,7 +263,7 @@ class ActorRolloutRefWorker(Worker):
             param_init_fn=init_fn,
             use_orig_params=False,
             auto_wrap_policy=auto_wrap_policy,
-            device_id=torch.cuda.current_device(),
+            device_id=torch.cuda.current_device(),#Xiao 02/27, 放到gpu上
             sharding_strategy=sharding_strategy,  # zero3
             mixed_precision=mixed_precision,
             sync_module_states=True,
@@ -340,11 +344,11 @@ class ActorRolloutRefWorker(Worker):
         if self._is_actor or self._is_rollout:
             # we need the model for actor and rollout
             if self._is_actor:
-                print(f"1 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model self._is_actor")
+                print(f"1 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model self._is_actor true")
                 optim_config = self.config.actor.optim
                 fsdp_config = self.config.actor.fsdp_config
             else:
-                print(f"2 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model self._is_rollout")
+                print(f"2 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model self._is_rollout true ")
                 optim_config = None
                 fsdp_config = OmegaConf.create()
             print(f"3 verl/workers/fsdp_workers.py ActorRolloutRefWorker.init_model fsdp_config: {fsdp_config}")
@@ -456,6 +460,7 @@ class ActorRolloutRefWorker(Worker):
         prompts = prompts.to('cuda')
 
         assert self._is_rollout
+        print(f"1 verl/workers/fsdp_workers.py ActorRolloutRefWorker.generate_sequences self._is_offload_param:{self._is_offload_param}")
         if self._is_offload_param:
             load_fsdp_param_and_grad(module=self.actor_module_fsdp,
                                      device_id=torch.cuda.current_device(),
@@ -476,7 +481,14 @@ class ActorRolloutRefWorker(Worker):
 
             prompts = self.rollout_sharding_manager.preprocess_data(prompts)#TODO(xiao) 25/02/12, do not understand this, why this, very important
             output = self.rollout.generate_sequences(prompts=prompts) #TODO(xiao) 25/02/12, do not understand this, why this, very important
-
+            """
+            #TODO(Xiao): 02/27, 这里的rollout初始化是
+            rollout = vLLMRollout(actor_module=self.actor_module_fsdp,
+                        config=self.config.rollout,
+                        tokenizer=self.tokenizer,
+                        model_hf_config=self.actor_model_config)
+            """
+       
             log_gpu_memory_usage('After rollout generation', logger=logger)
 
             output = self.rollout_sharding_manager.postprocess_data(output)
