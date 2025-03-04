@@ -66,7 +66,7 @@ def get_kl_controller(config):
 
     return kl_ctrl
 
-
+#TODO(xiao) 03/04,数学计算，需要理解数学原理
 def compute_gae_advantage_return(token_level_rewards: torch.Tensor, values: torch.Tensor, eos_mask: torch.Tensor,
                                  gamma: torch.Tensor, lam: torch.Tensor):
     """Adapted from https://github.com/huggingface/trl/blob/main/trl/trainer/ppo_trainer.py

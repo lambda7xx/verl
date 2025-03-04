@@ -83,7 +83,7 @@ class ResourcePoolManager:
 import torch
 from verl.utils.torch_functional import masked_mean
 
-
+#TODO(xiao) 03/04, 数学，得去看PPO的数学原理然后理解
 def apply_kl_penalty(data: DataProto, kl_ctrl: core_algos.AdaptiveKLController, kl_penalty='kl'):
     responses = data.batch['responses']
     response_length = responses.size(1)
@@ -91,14 +91,16 @@ def apply_kl_penalty(data: DataProto, kl_ctrl: core_algos.AdaptiveKLController, 
     batch_size = data.batch.batch_size[0]
     attention_mask = data.batch['attention_mask']
     response_mask = attention_mask[:, -response_length:]
-
+    print(f"1 verl/trainer/ppo/ray_trainer.py, apply_kl_penalty, attention_mask: {attention_mask.shape} and response_length: {response_length} and response_mask: {response_mask.shape}")
     # compute kl between ref_policy and current policy
     if 'ref_log_prob' in data.batch.keys():
+        print(f"2 verl/trainer/ppo/ray_trainer.py, apply_kl_penalty, ref_log_prob' in data.batch.keys()")
         kld = core_algos.kl_penalty(data.batch['old_log_probs'], data.batch['ref_log_prob'],
                                     kl_penalty=kl_penalty)  # (batch_size, response_length)
         kld = kld * response_mask
         beta = kl_ctrl.value
     else:
+        print(f"3 verl/trainer/ppo/ray_trainer.py, apply_kl_penalty, ref_log_prob' not in data.batch.keys()")
         beta = 0
         kld = torch.zeros_like(response_mask, dtype=torch.float32)
 
@@ -125,7 +127,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         response_length = responses.size(-1)
         attention_mask = data.batch['attention_mask']
         response_mask = attention_mask[:, -response_length:]
-        token_level_rewards = data.batch['token_level_rewards']
+        token_level_rewards = data.batch['token_level_rewards'] #batch.batch['token_level_scores'] = reward_tensor, 
         advantages, returns = core_algos.compute_gae_advantage_return(token_level_rewards=token_level_rewards,
                                                                       values=values,
                                                                       eos_mask=response_mask,
@@ -832,7 +834,8 @@ class RayPPOTrainer(object):
                 batch: DataProto = DataProto.from_single_dict(batch_dict)#TODO(xiao):2025-02-12, need understand the DataProto
 
                 # pop those keys for generation
-                gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])#Xiao:2025-02-12, why pop these keys
+                gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])#Xiao:2025-02-12, why pop these keys 
+                #Xiao 03/04, 得到input_ids, attention_mask, position_ids
 
                 with _timer('step', timing_raw):
                     # generate a batch
@@ -842,8 +845,13 @@ class RayPPOTrainer(object):
                     batch.non_tensor_batch['uid'] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))],
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
-                    batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
+                    batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)#Xiao 03/04, actor_rollout_ref.rollout.n表示一个prompt要生成n个答案
                     batch = batch.union(gen_batch_output) #TODO(xiao) 02/28, 这个gen_batch_output是rollout gen的，为什么要和batch union
+                    #Xiao 03/04，个人猜测是这个batch和gen_batch_output组合起来，才会被后续的critic/ref/rm等模型使用，第二阶段n): Using prompts and generated responses,
+                    # the critic computes their values [66, 68], the reference policy
+                    # computes their reference log probabilities, and the reward
+                    # model computes their rewards [7, 55], all via a single pass of
+                    # forward computation of the respective model.
 
                     # balance the number of valid tokens on each dp rank.
                     # Note that this breaks the order of data inside the batch.
@@ -858,6 +866,7 @@ class RayPPOTrainer(object):
                         old_log_prob = self.actor_rollout_wg.compute_log_prob(batch) #TODO(xiao):2025-02-12, 这个函数的作用是啥,为什么计算log_prob
                         batch = batch.union(old_log_prob) 
                         #TODO(xiao):2025-02-28,old_log_prob是self.actor_rollout_wg.compute_log_prob，为什么需要计算old_log_prob，为什么又要和batch union
+                        #xiao 03/04, 在DataParallelPPOActor::update_policy时，会用到old_log_prob
 
                     if self.use_reference_policy:
                         # compute reference log_prob

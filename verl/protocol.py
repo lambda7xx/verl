@@ -281,7 +281,9 @@ class DataProto:
                 i = i + 1 #Xiao: 这段代码的作用是打印出 val 的类型，最多打印两次
             if isinstance(val, torch.Tensor):
                 tensors[key] = val
+                print(f"2 verl/protocol.py, from_single_dict, key: {key}, val.shape: {val.shape}")
             elif isinstance(val, np.ndarray):
+                print(f"3 verl/protocol.py, from_single_dict, key: {key}, and val.shape: {val.shape}")
                 non_tensors[key] = val
             else:
                 raise ValueError(f'Unsupported type in data {type(val)}')

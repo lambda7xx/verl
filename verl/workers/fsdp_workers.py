@@ -503,6 +503,7 @@ class ActorRolloutRefWorker(Worker):
         log_gpu_memory_usage('After recompute log prob', logger=logger)
         return output
 
+    #TODO(xiao) 03/04,这样的计算不是很懂
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
     def compute_log_prob(self, data: DataProto):
         assert self._is_actor
@@ -540,6 +541,7 @@ class ActorRolloutRefWorker(Worker):
         log_gpu_memory_usage('After compute_log_prob', logger=logger)
         return output
 
+    #TODO(xiao) 03/04,这样的计算不是很懂
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
     def compute_ref_log_prob(self, data: DataProto):
         assert self._is_ref
@@ -781,6 +783,7 @@ class CriticWorker(Worker):
 
         torch.cuda.empty_cache()
 
+    #TODO(xiao) 03/04,这样的计算不是很懂
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
     def compute_values(self, data: DataProto):
         data = data.to('cuda')
@@ -1027,6 +1030,7 @@ class RewardModelWorker(Worker):
                 rm_score = rm_score.squeeze(-1)
 
             # extract the result of the last valid token
+            #TODO(xiao) 03/04,这样为什么这么计算
             eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)  # (bsz,)
             rm_score = rm_score[torch.arange(batch_size), eos_mask_idx]
             return rm_score
@@ -1103,6 +1107,7 @@ class RewardModelWorker(Worker):
 
         return DataProto.from_dict(rm_inputs)
 
+    #TODO(xiao) 03/04,这样的计算不是很懂
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
     def compute_rm_score(self, data: DataProto):
         import itertools
@@ -1126,7 +1131,7 @@ class RewardModelWorker(Worker):
                 micro_batches = rm_data.batch.split(self.config.micro_batch_size_per_gpu)
             output = []
             for micro_batch in micro_batches:
-                rm_score = self._forward_micro_batch(micro_batch)
+                rm_score = self._forward_micro_batch(micro_batch) #TODO(xiao) 03/04 这里还用到了self._forward_micro_batch
                 output.append(rm_score)
             scores = torch.cat(output, dim=0)  # (batch_size)
 
