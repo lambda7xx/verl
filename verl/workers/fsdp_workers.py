@@ -347,6 +347,8 @@ class ActorRolloutRefWorker(Worker):
             else:
                 optim_config = None
                 fsdp_config = OmegaConf.create()
+            optim_config = self.config.actor.optim
+            fsdp_config = self.config.actor.fsdp_config
             self.actor_module_fsdp, self.actor_optimizer, self.actor_lr_scheduler, self.actor_model_config = self._build_model_optimizer(
                 model_path=self.config.model.path,
                 fsdp_config=fsdp_config,

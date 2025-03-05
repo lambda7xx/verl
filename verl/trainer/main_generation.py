@@ -58,7 +58,7 @@ def main(config):
             assert config.data.n_samples == 1, 'When temperature=0, n_samples must be 1.'
 
         # read dataset. Note that the dataset should directly contain chat template format (e.g., a list of dictionary)
-        dataset = pd.read_parquet(config.data.path)
+        dataset = pd.read_parquet(config.data.path)[:1]
         chat_lst = dataset[config.data.prompt_key].tolist()
 
         chat_lst = [chat.tolist() for chat in chat_lst]
@@ -73,6 +73,7 @@ def main(config):
         wg.init_model()
 
         total_samples = len(dataset)
+        print(f"1 verl/verl/trainer/main_generation.py total_samples: {total_samples}")
         # real_batch_size = data.batch['input_ids'].shape[0]
         config_batch_size = config.data.batch_size
         dp_size = wg.world_size // config.rollout.tensor_model_parallel_size
@@ -168,7 +169,7 @@ def main(config):
         ground_truth = reward_data['ground_truth']
         score_lst = []
         for r in response_lst:
-            score = reward_fn(r, ground_truth)
+            score = reward_fn(data_source,r, ground_truth)
             score_lst.append(score)
         max_score = np.max(score_lst)
         total_scores.append(score_lst)

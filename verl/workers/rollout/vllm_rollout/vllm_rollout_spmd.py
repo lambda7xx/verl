@@ -126,7 +126,8 @@ class vLLMRollout(BaseRollout):
 
         assert model_hf_config.max_position_embeddings >= config.prompt_length + config.response_length, \
             "model context length should be greater than total sequence length"
-
+        config.async_engine = False 
+        print(f"verl/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py config.async_engine: {config.async_engine}")
         if config.async_engine:
             self.inference_engine = AsyncLLMEngine.from_engine_args(
                 AsyncEngineArgs(
